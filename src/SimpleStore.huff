@@ -1,40 +1,62 @@
 /* Interface */
 #define function setValue(uint256) nonpayable returns ()
-#define function getValue() view returns (uint256)
+#define function getValue() nonpayable returns (uint256)
 
 /* Storage Slots */
-#define constant VALUE_LOCATION = FREE_STORAGE_POINTER()
+#define constant VALUE = FREE_STORAGE_POINTER()
 
 /* Methods */
-#define macro SET_VALUE() = takes (0) returns (0) {
-    0x04 calldataload   // [value]
-    [VALUE_LOCATION]    // [ptr, value]
-    sstore              // []
-}
+#define macro MAIN() = takes(0) returns(0) {
+    // get the function selector
+    0x00 
+    calldataload 
 
-#define macro GET_VALUE() = takes (0) returns (0) {
-    // Load value from storage.
-    [VALUE_LOCATION]   // [ptr]
-    sload                // [value]
+    // shift to capture 32 bits (4 bytes selector)
+    0xE0 
+    shr
 
-    // Store value in memory.
-    0x00 mstore
+    dup1 __FUNC_SIG(setValue) eq setValue jumpi // compare function selector to setValue(uint256)
+    dup1 __FUNC_SIG(getValue) eq getValue jumpi // compare function selector to getValue()
 
-    // Return value
-    0x20 0x00 return
-}
+    FALLBACK()
 
-#define macro MAIN() = takes (0) returns (0) {
-    // Identify which function is being called.
-    0x00 calldataload 0xE0 shr
-    dup1 __FUNC_SIG(setValue) eq set jumpi
-    dup1 __FUNC_SIG(getValue) eq get jumpi
-
-    0x00 0x00 revert
-
-    set:
+    // dispatch
+    setValue:
         SET_VALUE()
-    get:
+    getValue:
         GET_VALUE()
 
+    0x00
+    0x00
+    revert
+}
+
+#define macro SET_VALUE() = takes(0) returns(0) {
+    // read uint256 from calldata
+    0x04 // [0x04]
+    calldataload // [value]
+
+    // get pointer and store
+    [VALUE] // [value_ptr, value]
+    sstore // []
+}
+
+#define macro GET_VALUE() = takes(0) returns(0) {
+    // read uint256 from storage
+    [VALUE] // [value_ptr]
+    sload // [value]
+
+    // store the return value in memory
+    0x00 // [0x00, value]
+    mstore // []
+
+    // return the first 32 bytes of memory containing our uint256
+    0x20 // [0x20]
+    0x00 // [0x00, 0x20]
+    return // []
+}
+
+#define macro FALLBACK() = takes(0) returns(0) {
+    0x01 0x00 mstore
+    0x20 0x00 return
 }
